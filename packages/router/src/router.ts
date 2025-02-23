@@ -644,6 +644,8 @@ export function createRouter(options: RouterOptions): Router {
               { path: newTargetLocation }
         // @ts-expect-error: force empty params when a string is passed to let
         // the router parse them again
+        // router.resolve() -> matcher.resolve({ path: newTargetLocation, params: {} })
+        // 内调用 matcher.parse(path) 会将 path 转为对应的 params
         newTargetLocation.params = {}
       }
 
