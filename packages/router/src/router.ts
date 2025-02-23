@@ -731,6 +731,7 @@ export function createRouter(options: RouterOptions): Router {
 
     return (failure ? Promise.resolve(failure) : navigate(toLocation, from))
       .catch((error: NavigationFailure | NavigationRedirectError) =>
+        // NOTE: 这里 catch 回调函数的返回值，是下面 then 函数中接收的值
         isNavigationFailure(error)
           ? // navigation redirects still mark the router as ready
             isNavigationFailure(error, ErrorTypes.NAVIGATION_GUARD_REDIRECT)
@@ -740,6 +741,9 @@ export function createRouter(options: RouterOptions): Router {
             triggerError(error, toLocation, from)
       )
       .then((failure: NavigationFailure | NavigationRedirectError | void) => {
+        // NOTE:
+        // 1. 若是 catch 有执行回调，那么这里的 failure 值是 catch 函数执行后的返回值
+        // 2. 若是 catch 没有执行回调，那么这里的 failure 值是前面 Promise resolve 的值
         if (failure) {
           if (
             isNavigationFailure(failure, ErrorTypes.NAVIGATION_GUARD_REDIRECT)
@@ -849,6 +853,8 @@ export function createRouter(options: RouterOptions): Router {
 
     // leavingRecords is already reversed
     for (const record of leavingRecords) {
+      // onBeforeRouteLeave 调用函数 通过 registerGuard
+      // registerGuard： packages/router/src/navigationGuards.ts
       record.leaveGuards.forEach(guard => {
         guards.push(guardToPromiseFn(guard, to, from))
       })
@@ -885,6 +891,8 @@ export function createRouter(options: RouterOptions): Router {
           )
 
           for (const record of updatingRecords) {
+            // onBeforeRouteUpdate 调用函数通过 registerGuard 注册
+            // registerGuard： packages/router/src/navigationGuards.ts
             record.updateGuards.forEach(guard => {
               guards.push(guardToPromiseFn(guard, to, from))
             })

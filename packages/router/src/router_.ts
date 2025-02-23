@@ -23,13 +23,13 @@ function guardToPromiseFn(
           // next(false) 表示终止此次路由执行，直接 reject,中间的 then().then().then() 就都不执行了
           // guardToPromiseFn().then().then().then().catch() 直接调用 next(false)
           // 设置其 promise 为 reject，则立马执行 catch(), 中间多个 then 直接不执行
-          reject(createRouterError<NavigationFailure>( ErrorTypes.NAVIGATION_ABORTED, { from, to }))
+          reject(`ErrorTypes.NAVIGATION_ABORTED`)
         } else if (valid instanceof Error) {
           reject(valid)
         } else if (isRouteLocation(valid)) {
           // 传入的是一个对象，表示重定向到这个路由
           // prettier-ignore
-          reject(createRouterError<NavigationRedirectError>( ErrorTypes.NAVIGATION_GUARD_REDIRECT, { from: to, to: valid }))
+          reject(`ErrorTypes.NAVIGATION_GUARD_REDIRECT`)
         } else {
           resolve()
         }
@@ -77,24 +77,30 @@ export function createRouter(options: any) {
     const toLocation = targetLocation
     return navigate(toLocation, from)
       .catch((error: any) => {
-        console.error('navigate', error)
+        console.error('navigate-error', error)
+        return error
       })
       .then((failure: any) => {
-        console.error('navigate', failure)
+        if (failure) {
+          console.error('navigate-failure', failure)
+        } else {
+          console.log('navigate-success', failure)
+        }
       })
   }
 
   // prettier-ignore
-  function checkCanceledNavigation( to: any, from: any ): NavigationFailure | void {
+  function checkCanceledNavigation( to: any, from: any ): any {
     if (pendingLocation !== to) {
       // prettier-ignore
-      return createRouterError<NavigationFailure>(ErrorTypes.NAVIGATION_CANCELLED, { from, to } )
+      // return createRouterError<NavigationFailure>(ErrorTypes.NAVIGATION_CANCELLED, { from, to } )
+      return 'ErrorTypes.NAVIGATION_CANCELLED'
     }
   }
 
   function checkCanceledNavigationAndReject(to: any, from: any): Promise<void> {
     const error = checkCanceledNavigation(to, from)
-    console.log('checkCanceledNavigation', error)
+    console.log('checkCanceledNavigation', error, to)
     return error ? Promise.reject(error) : Promise.resolve()
   }
 
@@ -114,6 +120,10 @@ export function createRouter(options: any) {
           console.log('beforeRouteLeave 2')
           // next 函数没有调用，那么返回的 Promise 就一直得不到 resolve, 后面的 then() 回调函数得不到执行
           next()
+          // 这里调用 next(false) 表示 导航 abort
+          // next(false)
+          // 这里调用 next({}) 传递对象，表示导航 redirect
+          // next({ name: 'c' })
         },
         to,
         from
@@ -137,6 +147,7 @@ export function createRouter(options: any) {
     // return runGuardQueue(guards)
     // 等价于：
     return (
+      // return runGuardQueue(guards)
       Promise.resolve()
         // beforeRouteLeave guards
         .then(() => guards[0]())
@@ -144,6 +155,7 @@ export function createRouter(options: any) {
         .then(() => guards[2]())
         .then(() => guards[3]())
         .then(() => guards[4]())
+        // runGuardQueue(guards)
         // check global guards beforeEach
         .then(() => {
           // check global guards beforeEach
@@ -154,15 +166,16 @@ export function createRouter(options: any) {
           guards.push(
             guardToPromiseFn(
               (to, from, next) => {
-                console.log(pendingLocation)
+                console.log('pendingLocation', pendingLocation.name)
                 // 钩子函数中直接调用 push 前往新的路由，此种情况属于 NAVIGATION_CANCELLED
                 // 导航取消错误
                 // push({name: 'a'}) // 这里会导致无限死循环
                 // 需要判断 push('/foo') 执行完后，不在执行，
-                if (pendingLocation.name === 'a') {
+                if (pendingLocation.name === 'b') {
                   next()
                 } else {
-                  push({ name: 'b' })
+                  // push({ name: 'b' })
+                  next()
                 }
               },
               to,
@@ -171,6 +184,9 @@ export function createRouter(options: any) {
           )
           guards.push(canceledNavigationCheck)
           return runGuardQueue(guards)
+        })
+        .then(() => {
+          console.log('runGuardQueue done')
         })
     )
   }
@@ -188,4 +204,29 @@ function runGuardQueue(guards: Lazy<any>[]): Promise<any> {
 }
 
 const router = createRouter({})
+
+// # canceledNavigationCheck - NAVIGATION_CANCELLED 使用场景
+// 同时同步的执行多个 push() 那么应该以最后一个准，这其中的错误信息为 NAVIGATION_CANCELLED
+// 第一次点击 一次 push()
 router.push({ name: 'a' })
+
+// pendingLocation = { name: 'a' }
+// 然后第二次又执行一次 push(), 第一次的 push() 里面的钩子函数是异步的，还没有执行完
+// 此时又执行新的 push
+//
+router.push({ name: 'b' })
+
+// 用户点击链接到 /page1
+// router.push('/page1')
+// pendingLocation = '/page1'
+
+// 当还在处理到 /page1 的导航时...
+// 用户快速点击链接到 /page2
+// router.push('/page2')
+// pendingLocation = '/page2'
+
+// 当 /page1 的导航尝试完成时：
+// if (pendingLocation !== '/page1') {
+//   // 到 /page1 的导航被取消，因为现在要去 /page2
+//   return createRouterError(ErrorTypes.NAVIGATION_CANCELLED)
+// }
