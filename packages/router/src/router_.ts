@@ -67,7 +67,10 @@ export function createRouter(options: any) {
   }
 
   function push(to: any) {
-    pushWithRedirect(to)
+    if (typeof to === 'string') {
+      to = { name: to }
+    }
+    return pushWithRedirect(to)
   }
 
   function pushWithRedirect(to: any) {
@@ -83,8 +86,10 @@ export function createRouter(options: any) {
       .then((failure: any) => {
         if (failure) {
           console.error('navigate-failure', failure)
+          return Promise.reject(failure)
         } else {
           console.log('navigate-success', failure)
+          return Promise.resolve(failure)
         }
       })
   }
@@ -119,11 +124,17 @@ export function createRouter(options: any) {
         (to, from, next) => {
           console.log('beforeRouteLeave 2')
           // next 函数没有调用，那么返回的 Promise 就一直得不到 resolve, 后面的 then() 回调函数得不到执行
-          next()
+          // next()
           // 这里调用 next(false) 表示 导航 abort
           // next(false)
           // 这里调用 next({}) 传递对象，表示导航 redirect
           // next({ name: 'c' })
+          //
+          // 模拟异步操作（例如权限检查或数据加载）
+          setTimeout(() => {
+            // 假设异步操作完成后继续导航
+            next()
+          }, 1000)
         },
         to,
         from
@@ -208,13 +219,13 @@ const router = createRouter({})
 // # canceledNavigationCheck - NAVIGATION_CANCELLED 使用场景
 // 同时同步的执行多个 push() 那么应该以最后一个准，这其中的错误信息为 NAVIGATION_CANCELLED
 // 第一次点击 一次 push()
-router.push({ name: 'a' })
+// router.push({ name: 'a' })
 
 // pendingLocation = { name: 'a' }
 // 然后第二次又执行一次 push(), 第一次的 push() 里面的钩子函数是异步的，还没有执行完
 // 此时又执行新的 push
 //
-router.push({ name: 'b' })
+// router.push({ name: 'b' })
 
 // 用户点击链接到 /page1
 // router.push('/page1')
@@ -230,3 +241,21 @@ router.push({ name: 'b' })
 //   // 到 /page1 的导航被取消，因为现在要去 /page2
 //   return createRouterError(ErrorTypes.NAVIGATION_CANCELLED)
 // }
+
+// 用户触发异步导航 - 比如里面有异步函数需要从 api load 数据，时间比较长
+router.push('/page1').catch((failure: any) => {
+  console.log('导航被更新的请求取消了')
+  // if (isNavigationFailure(failure, NavigationFailureType.cancelled)) {
+  //   console.log('导航被更新的请求取消了')
+  // }
+})
+
+// 此时用户点击了另一个链接执行 新的 push 操作，则会将还在等待数据的老的 push 的路由给覆盖掉
+// 总是以最新的 push() load 渲染组件
+
+// router.push('/page2')
+
+// 在导航完成前触发新导航
+setTimeout(() => {
+  router.push('/page2')
+}, 100)
