@@ -270,7 +270,11 @@ export function tokensToParser(
                 // do not append a slash on the next iteration
                 else avoidDuplicatedSlash = true
               }
-            } else throw new Error(`Missing required param "${value}"`)
+            } else {
+              // 这里的 else 对应的是 上面 optional 为 false 的情形，此时不是可选的，但是参数却为空
+              // 这里需要抛出错误
+              throw new Error(`Missing required param "${value}"`)
+            }
           }
           path += text
         }

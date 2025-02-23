@@ -590,7 +590,7 @@ export function createRouter(options: RouterOptions): Router {
             ? normalizeQuery(rawLocation.query)
             : ((rawLocation.query || {}) as LocationQuery),
       },
-      matchedRoute,
+      matchedRoute, // { name, path, params, meta, matched }
       {
         redirectedFrom: undefined,
         href,
